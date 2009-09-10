@@ -17,7 +17,7 @@ function build {
   fi
 
   echo "Building ‘tm_interactive_input_$1.dylib’ (for ${DEPLOYMENT}${NDEBUG:+, no debug})…"
-  gcc -dynamiclib -Wmost -Os -fno-common \
+  gcc-4.0 -dynamiclib -Wmost -Os -fno-common \
     -framework CoreFoundation \
     -DDATE=\"$(date +%Y-%m-%d)\" \
     ${NDEBUG:+-DNDEBUG=1} \
