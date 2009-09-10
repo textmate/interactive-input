@@ -276,7 +276,7 @@ void capture_for_prompt(const void *buffer, size_t buffer_length) {
     pthread_mutex_lock(&prompt_mutex);
     strncpy(prompt, from, to - from);
     prompt[to - from] = '\0';
-    D("copied %i bytes to prompt\n", (int)to - from);
+    D("copied %i bytes to prompt\n", ((int)(to - from)));
     pthread_mutex_unlock(&prompt_mutex);
 
     D("prompt = '%s'\n", prompt);
