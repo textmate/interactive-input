@@ -14,9 +14,25 @@
 #include <CoreFoundation/CoreFoundation.h>
 #include <sys/errno.h>
 #include <dlfcn.h>
+#include <pthread.h>
+
+static int initialised = 0;
+
+pthread_key_t override_in_use_flag_tls_key = 0;
+
+void __attribute__ ((constructor)) tls_init(void) {
+    int e = pthread_key_create(&override_in_use_flag_tls_key, NULL);
+    if (e != 0) {
+        die("tls_init() failed: %s", strerror(e));
+    }
+    initialised = 1;
+}
+
+#define INITIALISED_AND_NOT_IN_OVERRIDE() (initialised != 0 && (pthread_getspecific((override_in_use_flag_tls_key)) == NULL))
+#define MARK_IN_OVERRIDE() pthread_setspecific((override_in_use_flag_tls_key), (void *)1)
+#define UNMARK_IN_OVERRIDE() pthread_setspecific((override_in_use_flag_tls_key) ,NULL)
 
 ssize_t read_override(char* system_symbol, int d, void *buffer, size_t buffer_length) {
-
     // Only interested in STDIN
     if (!tm_interactive_input_is_active() || !stdin_fd_tracker_is_stdin(d) || !fd_is_owned_by_tm(d)) 
         return system_read(system_symbol, d, buffer, buffer_length);
@@ -64,21 +80,32 @@ ssize_t read_override(char* system_symbol, int d, void *buffer, size_t buffer_le
     }
 }
 
+ssize_t read_override_wrapper(char* system_symbol, int d, void *buffer, size_t buffer_length) {
+    if (INITIALISED_AND_NOT_IN_OVERRIDE()) {
+        MARK_IN_OVERRIDE();
+        ssize_t r = read_override(system_symbol, d, buffer, buffer_length);
+        UNMARK_IN_OVERRIDE();
+        return r;
+    } else {
+        return system_read(system_symbol, d, buffer, buffer_length);
+    }
+}
+
 ssize_t system_read(char *symbol, int d, void *buffer, size_t buffer_length) {
     int (*read_impl)(int, const void*, size_t) = dlsym(RTLD_NEXT, symbol);
     return read_impl(d, buffer, buffer_length);
 }
 
 ssize_t read(int d, void *buffer, size_t buffer_length) {
-    return read_override("read", d, buffer, buffer_length);
+    return read_override_wrapper("read", d, buffer, buffer_length);
 }
 
 ssize_t read_unix2003(int d, void *buffer, size_t buffer_length) {
-    return read_override("read$UNIX2003", d, buffer, buffer_length);
+    return read_override_wrapper("read$UNIX2003", d, buffer, buffer_length);
 }
 
 ssize_t read_nocancel_unix2003(int d, void *buffer, size_t buffer_length) {
-    return read_override("read$NOCANCEL$UNIX2003", d, buffer, buffer_length);
+    return read_override_wrapper("read$NOCANCEL$UNIX2003", d, buffer, buffer_length);
 }
 
 ssize_t write_override(char *system_symbol, int d, const void *buffer, size_t buffer_length) {
@@ -88,35 +115,60 @@ ssize_t write_override(char *system_symbol, int d, const void *buffer, size_t bu
     return system_write(system_symbol, d, buffer, buffer_length);
 }
 
+ssize_t write_override_wrapper(char *system_symbol, int d, const void *buffer, size_t buffer_length) {
+    if (INITIALISED_AND_NOT_IN_OVERRIDE()) {
+        MARK_IN_OVERRIDE();
+        ssize_t r = write_override(system_symbol, d, buffer, buffer_length);
+        UNMARK_IN_OVERRIDE();
+        return r;
+    } else {
+        return system_write(system_symbol, d, buffer, buffer_length);
+    }
+}
 ssize_t system_write(char *symbol, int d, const void *buffer, size_t buffer_length) {
     int (*write_impl)(int, const void*, size_t) = dlsym(RTLD_NEXT, symbol);
     return write_impl(d, buffer, buffer_length);
 }
 
 ssize_t write(int d, const void *buffer, size_t buffer_length) {
-    return write_override("write", d, buffer, buffer_length);
+    return write_override_wrapper("write", d, buffer, buffer_length);
 }
 
 ssize_t write_unix2003(int d, const void *buffer, size_t buffer_length) {
-    return write_override("write$UNIX2003", d, buffer, buffer_length);
+    return write_override_wrapper("write$UNIX2003", d, buffer, buffer_length);
 }
 
 ssize_t write_nocancel_unix2003(int d, const void *buffer, size_t buffer_length) {
-    return write_override("write$NOCANCEL$UNIX2003", d, buffer, buffer_length);
+    return write_override_wrapper("write$NOCANCEL$UNIX2003", d, buffer, buffer_length);
 }
 
 int dup(int orig) {
     int (*system_dup)(int) = dlsym(RTLD_NEXT, "dup");
-    int dup = system_dup(orig);
-    if (tm_interactive_input_is_active()) stdin_fd_tracker_did_dup(orig, dup);
-    return dup;
+
+    if (INITIALISED_AND_NOT_IN_OVERRIDE()) {
+        MARK_IN_OVERRIDE();
+        int dup = system_dup(orig);
+        if (tm_interactive_input_is_active()) stdin_fd_tracker_did_dup(orig, dup);
+        UNMARK_IN_OVERRIDE();
+        return dup;
+    } else {
+        return system_dup(orig);
+    }
 }
 
 int close(int fd) {
     int (*system_close)(int) = dlsym(RTLD_NEXT, "close");
-    int res = system_close(fd);
-    if (tm_interactive_input_is_active()) stdin_fd_tracker_did_close(fd);
-    return res;
+
+    if (INITIALISED_AND_NOT_IN_OVERRIDE()) {
+        MARK_IN_OVERRIDE();
+        int res = system_close(fd);
+        if (tm_interactive_input_is_active()) 
+            stdin_fd_tracker_did_close(fd);
+        UNMARK_IN_OVERRIDE();
+        return res;
+    } else {
+        return system_close(fd);
+    }
 }
 
 int system_select(char * symbol, int nfds, fd_set * __restrict readfds, fd_set * __restrict writefds, fd_set * __restrict errorfds, struct timeval * __restrict timeout) {
@@ -165,22 +217,33 @@ int select_override(char * system_symbol, int nfds, fd_set * __restrict readfds,
     return result;
 }
 
+int select_override_wrapper(char * system_symbol, int nfds, fd_set * __restrict readfds, fd_set * __restrict writefds, fd_set * __restrict errorfds, struct timeval * __restrict timeout) {
+    if (INITIALISED_AND_NOT_IN_OVERRIDE()) {
+        MARK_IN_OVERRIDE();
+        int r = select_override(system_symbol, nfds, readfds, writefds, errorfds, timeout);
+        UNMARK_IN_OVERRIDE();
+        return r;
+    } else {
+        return system_select(system_symbol, nfds, readfds, writefds, errorfds, timeout);
+    }
+}
+
 int select(int nfds, fd_set * __restrict readfds, fd_set * __restrict writefds, fd_set * __restrict errorfds, struct timeval * __restrict timeout) {
-    return select_override("select", nfds, readfds, writefds, errorfds, timeout);
+    return select_override_wrapper("select", nfds, readfds, writefds, errorfds, timeout);
 }
 
 int select_darwinextsn(int nfds, fd_set * __restrict readfds, fd_set * __restrict writefds, fd_set * __restrict errorfds, struct timeval * __restrict timeout) {
-    return select_override("select$DARWIN_EXTSN", nfds, readfds, writefds, errorfds, timeout);
+    return select_override_wrapper("select$DARWIN_EXTSN", nfds, readfds, writefds, errorfds, timeout);
 }
 
 int select_darwinextsn_nocancel(int nfds, fd_set * __restrict readfds, fd_set * __restrict writefds, fd_set * __restrict errorfds, struct timeval * __restrict timeout) {
-    return select_override("select$DARWIN_EXTSN$NOCANCEL", nfds, readfds, writefds, errorfds, timeout);
+    return select_override_wrapper("select$DARWIN_EXTSN$NOCANCEL", nfds, readfds, writefds, errorfds, timeout);
 }
 
 int select_nocancel_unix2003(int nfds, fd_set * __restrict readfds, fd_set * __restrict writefds, fd_set * __restrict errorfds, struct timeval * __restrict timeout) {
-    return select_override("select$NOCANCEL$UNIX2003", nfds, readfds, writefds, errorfds, timeout);
+    return select_override_wrapper("select$NOCANCEL$UNIX2003", nfds, readfds, writefds, errorfds, timeout);
 }
 
 int select_unix2003(int nfds, fd_set * __restrict readfds, fd_set * __restrict writefds, fd_set * __restrict errorfds, struct timeval * __restrict timeout) {
-    return select_override("select$UNIX2003", nfds, readfds, writefds, errorfds, timeout);
+    return select_override_wrapper("select$UNIX2003", nfds, readfds, writefds, errorfds, timeout);
 }
