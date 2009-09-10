@@ -100,6 +100,10 @@ ssize_t read(int d, void *buffer, size_t buffer_length) {
     return read_override_wrapper("read", d, buffer, buffer_length);
 }
 
+ssize_t read_nocancel(int d, void *buffer, size_t buffer_length) {
+    return read_override_wrapper("read$NOCANCEL", d, buffer, buffer_length);
+}
+
 ssize_t read_unix2003(int d, void *buffer, size_t buffer_length) {
     return read_override_wrapper("read$UNIX2003", d, buffer, buffer_length);
 }
@@ -132,6 +136,10 @@ ssize_t system_write(char *symbol, int d, const void *buffer, size_t buffer_leng
 
 ssize_t write(int d, const void *buffer, size_t buffer_length) {
     return write_override_wrapper("write", d, buffer, buffer_length);
+}
+
+ssize_t write_nocancel(int d, const void *buffer, size_t buffer_length) {
+    return write_override_wrapper("write$NOCANCEL", d, buffer, buffer_length);
 }
 
 ssize_t write_unix2003(int d, const void *buffer, size_t buffer_length) {
@@ -240,10 +248,14 @@ int select_darwinextsn_nocancel(int nfds, fd_set * __restrict readfds, fd_set * 
     return select_override_wrapper("select$DARWIN_EXTSN$NOCANCEL", nfds, readfds, writefds, errorfds, timeout);
 }
 
-int select_nocancel_unix2003(int nfds, fd_set * __restrict readfds, fd_set * __restrict writefds, fd_set * __restrict errorfds, struct timeval * __restrict timeout) {
-    return select_override_wrapper("select$NOCANCEL$UNIX2003", nfds, readfds, writefds, errorfds, timeout);
+int select_nocancel(int nfds, fd_set * __restrict readfds, fd_set * __restrict writefds, fd_set * __restrict errorfds, struct timeval * __restrict timeout) {
+    return select_override_wrapper("select$NOCANCEL", nfds, readfds, writefds, errorfds, timeout);
 }
 
 int select_unix2003(int nfds, fd_set * __restrict readfds, fd_set * __restrict writefds, fd_set * __restrict errorfds, struct timeval * __restrict timeout) {
     return select_override_wrapper("select$UNIX2003", nfds, readfds, writefds, errorfds, timeout);
+}
+
+int select_nocancel_unix2003(int nfds, fd_set * __restrict readfds, fd_set * __restrict writefds, fd_set * __restrict errorfds, struct timeval * __restrict timeout) {
+    return select_override_wrapper("select$NOCANCEL$UNIX2003", nfds, readfds, writefds, errorfds, timeout);
 }

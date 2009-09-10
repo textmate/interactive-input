@@ -6,11 +6,13 @@
 
 ssize_t system_read(char*, int, void *, size_t);
 ssize_t read(int, void *, size_t) __asm("_read");
+ssize_t read_nocancel(int, void *, size_t) __asm("_read$NOCANCEL");
 ssize_t read_unix2003(int, void *, size_t) __asm("_read$UNIX2003");
 ssize_t read_nocancel_unix2003(int, void *, size_t) __asm("_read$NOCANCEL$UNIX2003");
 
 ssize_t system_write(char*, int, const void *, size_t);
 ssize_t write(int, const void*, size_t) __asm("_write");
+ssize_t write_nocancel(int, const void*, size_t) __asm("_write$NOCANCEL");
 ssize_t write_unix2003(int, const void*, size_t) __asm("_write$UNIX2003");
 ssize_t write_nocancel_unix2003(int, const void*, size_t) __asm("_write$NOCANCEL$UNIX2003");
 
@@ -27,7 +29,8 @@ int select(int, fd_set * __restrict, fd_set * __restrict, fd_set * __restrict, s
 #endif
 int select_darwinextsn(int, fd_set * __restrict, fd_set * __restrict, fd_set * __restrict, struct timeval * __restrict) __asm("_select$DARWIN_EXTSN");
 int select_darwinextsn_nocancel(int, fd_set * __restrict, fd_set * __restrict, fd_set * __restrict, struct timeval * __restrict) __asm("_select$DARWIN_EXTSN$NOCANCEL");
-int select_nocancel_unix2003(int, fd_set * __restrict, fd_set * __restrict, fd_set * __restrict, struct timeval * __restrict) __asm("_select$NOCANCEL$UNIX2003");
+int select_nocancel(int, fd_set * __restrict, fd_set * __restrict, fd_set * __restrict, struct timeval * __restrict) __asm("_select$NOCANCEL");
 int select_unix2003(int, fd_set * __restrict, fd_set * __restrict, fd_set * __restrict, struct timeval * __restrict) __asm("_select$UNIX2003");
+int select_nocancel_unix2003(int, fd_set * __restrict, fd_set * __restrict, fd_set * __restrict, struct timeval * __restrict) __asm("_select$NOCANCEL$UNIX2003");
 
 #endif /* end of include guard: SYSTEM_FUNCTION_OVERRIDES_H_OD5QRJC5 */
