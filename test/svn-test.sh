@@ -9,4 +9,4 @@ SVN=svn
 
 . "$(dirname "$0")/setup.sh"
 "$SVN" --version | head -1
-TM_INTERACTIVE_INPUT=AUTO "$SVN" log http://svn.textmate.org/ --limit 1
+TM_INTERACTIVE_INPUT=AUTO "$SVN" --no-auth-cache log http://svn.textmate.org/ --limit 1
